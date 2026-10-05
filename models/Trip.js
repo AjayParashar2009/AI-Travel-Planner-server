@@ -13,7 +13,7 @@ const tripSchema = new mongoose.Schema(
       required: [true, "Destination id required"],
       trim: true,
     },
-    input: {
+    inputs: {
       startDate: String,
       endDate: String,
       duration: {

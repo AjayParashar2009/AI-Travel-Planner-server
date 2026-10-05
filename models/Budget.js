@@ -61,6 +61,7 @@ const budgetSchema = new mongoose.Schema(
       verdict: String,
       moneySavingTips: [String],
       hiddenCosts: [String],
+      cheaperAlternatives: [String],
       localPriceExample: mongoose.Schema.Types.Mixed,
     },
     status: {

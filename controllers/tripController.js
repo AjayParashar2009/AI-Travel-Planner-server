@@ -4,6 +4,7 @@ const { v4: uuidV4 } = require("uuid");
 const mongoose = require("mongoose");
 const { response } = require("../app");
 const { json } = require("express");
+// const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
