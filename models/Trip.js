@@ -16,18 +16,9 @@ const tripSchema = new mongoose.Schema(
     inputs: {
       startDate: String,
       endDate: String,
-      duration: {
-        type: Number,
-        default: 3,
-      },
-      numTravelers: {
-        type: Number,
-        default: 1,
-      },
-      travelStyle: {
-        type: String,
-        default: "Standard",
-      },
+      duration: { type: Number, default: 3 },
+      numTravelers: { type: Number, default: 1 },
+      travelStyle: { type: String, default: "Standard" },
       interest: [String],
       budgetMin: Number,
       budgetMax: Number,
@@ -36,6 +27,12 @@ const tripSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       required: true,
     },
+    // --- ADD THIS ---
+    weather: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    // ----------------
     sharedId: {
       type: String,
       unique: true,
