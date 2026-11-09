@@ -1,5 +1,7 @@
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require("google-auth-library");
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const { validationResult } = require("express-validator");
 
@@ -117,4 +119,47 @@ exports.logout = (req, res) => {
   return res
     .status(200)
     .json({ success: true, message: "Logout successfully" });
+};
+
+exports.googleLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: "Token required" });
+
+    // 1. Verify token with Google
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name } = payload;
+
+    // 2. Check if user exists
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // 3. Create user if they don't exist
+      // Since they use Google, we generate a random password
+      user = await User.create({
+        name,
+        email,
+        password: Math.random().toString(36).slice(-10) + "Aa1!", // Guaranteed 13+ chars
+        country: "India", // Default or make optional in your DB schema
+      });
+    }
+
+    // 4. Generate YOUR app's token using your existing signToken function
+    const token = signToken(user._id);
+
+    // 5. Return exactly what your normal login returns
+    return res.json({
+      success: true,
+      token,
+      user: filterUserResponse(user),
+    });
+  } catch (error) {
+    console.error("Google auth error:", error);
+    return res.status(401).json({ error: "Invalid Google token" });
+  }
 };

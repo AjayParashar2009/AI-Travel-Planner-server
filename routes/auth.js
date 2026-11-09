@@ -49,5 +49,5 @@ router.post("/login", loginValidation, validate, authController.login);
 
 router.get("/me", auth, authController.getMe);
 router.post("/logout", authController.logout);
-
+router.post("/google", authController.googleLogin);
 module.exports = router;
