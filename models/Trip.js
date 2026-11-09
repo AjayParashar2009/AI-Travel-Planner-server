@@ -27,7 +27,6 @@ const tripSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       required: true,
     },
-    // --- ADD THIS ---
     weather: {
       type: mongoose.Schema.Types.Mixed,
       default: null,

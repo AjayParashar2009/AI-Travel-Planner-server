@@ -1,42 +1,26 @@
 const { GoogleGenAI } = require("@google/genai");
 const Trip = require("../models/Trip");
 const { v4: uuidV4 } = require("uuid");
-const mongoose = require("mongoose");
-const axios = require("axios"); // Added for Weather API
+const axios = require("axios");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-// --- WEATHER HELPERS ---
-
-// Helper to get lat/lon from a city name
-async function getCoordinates(destination) {
+// --- WEATHER HELPER (Visual Crossing) ---
+async function getWeatherForecast(destination, startDate, endDate) {
   try {
-    const res = await axios.get(
-      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(destination)}&count=1&language=en&format=json`,
-    );
-    if (res.data.results && res.data.results.length > 0) {
-      return {
-        lat: res.data.results[0].latitude,
-        lon: res.data.results[0].longitude,
-        name: res.data.results[0].name,
-      };
+    const apiKey = process.env.WEATHER_API_KEY;
+    if (!apiKey) {
+      console.log("No WEATHER_API_KEY found in .env");
+      return null;
     }
-    return null;
-  } catch (error) {
-    console.error("Geocoding failed:", error.message);
-    return null;
-  }
-}
 
-// Helper to fetch the weather forecast
-async function getWeatherForecast(lat, lon, startDate, endDate) {
-  try {
-    const res = await axios.get(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode&timezone=auto&start_date=${startDate}&end_date=${endDate}`,
-    );
-    return res.data.daily;
+    // Visual Crossing handles geocoding + dates in a single URL
+    const url = `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${encodeURIComponent(destination)}/${startDate}/${endDate}?unitGroup=metric&key=${apiKey}&contentType=json`;
+
+    const res = await axios.get(url);
+    return res.data.days; // Returns the array of daily forecasts
   } catch (error) {
     console.error("Weather fetch failed:", error.message);
     return null;
@@ -44,14 +28,13 @@ async function getWeatherForecast(lat, lon, startDate, endDate) {
 }
 
 // --- GENERATE TRIP ---
-
 exports.generateTrips = async (req, res) => {
   try {
     const { destination, inputs = {} } = req.body;
     const duration = parseInt(inputs.duration) || 3;
     const travelers = parseInt(inputs.numTravelers) || 1;
 
-    // 1. Check dates and fetch weather if within 15 days
+    // 1. Check dates and fetch weather
     let weatherData = null;
     let weatherContext = "";
 
@@ -63,42 +46,51 @@ exports.generateTrips = async (req, res) => {
         (tripStart - today) / (1000 * 60 * 60 * 24),
       );
 
-      if (daysUntilTrip >= 0 && daysUntilTrip <= 15) {
-        const coords = await getCoordinates(destination);
-        if (coords) {
-          weatherData = await getWeatherForecast(
-            coords.lat,
-            coords.lon,
-            inputs.startDate,
-            inputs.endDate,
-          );
+      console.log("--- WEATHER DEBUG ---");
+      console.log("Days until trip:", daysUntilTrip);
 
-          if (weatherData) {
-            weatherContext = `
-            REAL WEATHER FORECAST for ${coords.name}:
-            ${weatherData.time
-              .map(
-                (date, i) =>
-                  `${date}: Min ${weatherData.temperature_2m_min[i]}°C, Max ${weatherData.temperature_2m_max[i]}°C, Rain probability ${weatherData.precipitation_probability_max[i]}%`,
-              )
-              .join("\n")}
-            
-            IMPORTANT: If it is going to rain heavily, suggest indoor activities for those days.`;
-          }
+      if (daysUntilTrip >= 0 && daysUntilTrip <= 15) {
+        console.log("Within 15 days! Fetching weather for:", destination);
+
+        // Call the correct function with the correct arguments
+        weatherData = await getWeatherForecast(
+          destination,
+          inputs.startDate,
+          inputs.endDate,
+        );
+
+        console.log(
+          "Weather Data result:",
+          weatherData
+            ? `Success (${weatherData.length} days)`
+            : "Failed (null)",
+        );
+
+        if (weatherData && weatherData.length > 0) {
+          // Map over the Visual Crossing data format
+          weatherContext = `
+          REAL WEATHER FORECAST for ${destination}:
+          ${weatherData
+            .map(
+              (day) =>
+                `${day.datetime}: Min ${day.tempmin}°C, Max ${day.tempmax}°C, Conditions: ${day.conditions}, Rain probability: ${day.precipprob}%`,
+            )
+            .join("\n")}
+          
+          IMPORTANT: If it is going to rain heavily, suggest indoor activities for those days.`;
         }
       } else {
+        console.log("Trip is too far away or in the past.");
         weatherContext =
           "Weather forecast is not available yet (trip is more than 15 days away).";
       }
     }
 
-    // 2. Create the prompt with weather context
+    // 2. Create prompt
     const prompt = `
 Create a ${duration}-day travel itinerary for ${destination}.
 Number of travelers: ${travelers}
-
 ${weatherContext}
-
 Return ONLY valid JSON in this format:
 {
   "itinerary": {
@@ -108,44 +100,15 @@ Return ONLY valid JSON in this format:
         "theme": "",
         "neighborhood": "",
         "estimatedDailyCost": 150,
-        "morning": {
-          "activity": "",
-          "description": "",
-          "location": "",
-          "estimatedCost": 20,
-          "tips": ""
-        },
-        "afternoon": {
-          "activity": "",
-          "description": "",
-          "location": "",
-          "estimatedCost": 50,
-          "tips": ""
-        },
-        "evening": {
-          "activity": "",
-          "description": "",
-          "location": "",
-          "estimatedCost": 50,
-          "tips": ""
-        }
+        "morning": { "activity": "", "description": "", "location": "", "estimatedCost": 20, "tips": "" },
+        "afternoon": { "activity": "", "description": "", "location": "", "estimatedCost": 50, "tips": "" },
+        "evening": { "activity": "", "description": "", "location": "", "estimatedCost": 50, "tips": "" }
       }
     ]
   },
-  "insights": [
-    {
-      "title": "",
-      "content": ""
-    }
-  ],
-  "packingList": {
-    "essentials": [],
-    "clothing": [],
-    "gear": [],
-    "documents": []
-  }
-}
-`;
+  "insights": [{ "title": "", "content": "" }],
+  "packingList": { "essentials": [], "clothing": [], "gear": [], "documents": [] }
+}`;
 
     const result = await ai.models.generateContent({
       model: "gemini-3.6-flash",
@@ -153,20 +116,19 @@ Return ONLY valid JSON in this format:
     });
 
     let text = result.text.trim();
-    text = text.replace(/^```json\s*/, "");
-    text = text.replace(/```$/, "");
-
+    text = text.replace(/^```json\s*/, "").replace(/```$/, "");
     const aiData = JSON.parse(text);
 
-    // 3. Save trip including the weather data
+    // 3. Save trip
+    const userId = req.user?._id || req.user?.id;
     const newTrip = new Trip({
-      userId: req.user?._id || req.user?.id,
+      userId,
       destination,
       inputs: { ...inputs, duration, numTravelers: travelers },
       itinerary: aiData.itinerary,
       insights: aiData.insights,
       packingList: aiData.packingList,
-      weather: weatherData, // <--- Save weather here
+      weather: weatherData, // Saves the array from Visual Crossing
       sharedId: uuidV4(),
     });
 
@@ -180,13 +142,12 @@ Return ONLY valid JSON in this format:
   }
 };
 
-// --- OTHER ROUTES ---
+// --- OTHER ROUTES (Keep these exactly as they are) ---
 
 exports.getHistory = async (req, res) => {
   try {
-    const trips = await Trip.find({
-      userId: new mongoose.Types.ObjectId(req.user._id),
-    });
+    const userId = req.user?._id || req.user?.id;
+    const trips = await Trip.find({ userId: userId });
     res.json({ trips: trips });
   } catch (error) {
     console.error("failed to fetch trip history");
@@ -196,29 +157,32 @@ exports.getHistory = async (req, res) => {
 
 exports.getTripById = async (req, res) => {
   try {
+    const userId = req.user?._id || req.user?.id;
     const trip = await Trip.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: userId,
     });
+
     if (!trip) {
-      res.status(404).json({ error: "Trip not found" });
-      return; // Added return to stop execution
+      return res.status(404).json({ error: "Trip not found" });
     }
+
     res.json({ trip });
   } catch (error) {
-    res.status(500).json({ error: "failed to fetch trip history" });
+    res.status(500).json({ error: "failed to fetch trip" });
   }
 };
 
 exports.toggleShare = async (req, res) => {
   try {
+    const userId = req.user?._id || req.user?.id;
     const trip = await Trip.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: userId,
     });
+
     if (!trip) {
-      res.status(404).json({ error: "Trip not found" });
-      return; // Added return to stop execution
+      return res.status(404).json({ error: "Trip not found" });
     }
 
     trip.isPublic = !trip.isPublic;
@@ -228,25 +192,27 @@ exports.toggleShare = async (req, res) => {
 
     res.json({ isPublic: trip.isPublic, sharedId: trip.sharedId });
   } catch (error) {
-    res.status(500).json({ error: "failed to fetch trip history" });
+    res.status(500).json({ error: "failed to toggle share" });
   }
 };
 
 exports.deleteTrip = async (req, res) => {
   try {
+    const userId = req.user?._id || req.user?.id;
     const result = await Trip.findOneAndDelete({
-      _id: req.params._id, // Fixed: was "id" instead of "_id"
-      userId: req.user._id,
+      _id: req.params.id,
+      userId: userId,
     });
 
-    if (!result)
+    if (!result) {
       return res
         .status(404)
         .json({ error: "Trip is not found or unauthorized" });
+    }
 
     res.json({ message: "Trip is deleted Successfully" });
   } catch (error) {
-    return res.status(500).json({ error: "Failed to fetch id" });
+    return res.status(500).json({ error: "Failed to delete trip" });
   }
 };
 
@@ -257,10 +223,11 @@ exports.getSharedTrip = async (req, res) => {
       isPublic: true,
     });
 
-    if (!trip)
+    if (!trip) {
       return res
         .status(404)
         .json({ message: "Trip is not public or trip doesn't exist" });
+    }
 
     res.json({ trip });
   } catch (error) {
