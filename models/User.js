@@ -27,7 +27,7 @@ const userSchema = mongoose.Schema(
     },
     currency: {
       type: String,
-      default: "INR",
+      default: "USD",
       uppercase: true,
     },
     plan: {
@@ -56,7 +56,7 @@ userSchema.pre("save", async function () {
 
   if (this.isModified("country")) {
     const currencyMap = {
-      IND: "INR",
+      IND: "USD",
       USA: "USD",
       GBR: "GBP",
       JPN: "JPY",

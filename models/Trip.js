@@ -10,7 +10,7 @@ const tripSchema = new mongoose.Schema(
     },
     destination: {
       type: String,
-      required: [true, "Destination id required"],
+      required: [true, "Destination is required"],
       trim: true,
     },
     inputs: {
@@ -27,11 +27,22 @@ const tripSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       required: true,
     },
+    // --- ADD THESE TWO FIELDS ---
+    insights: [
+      {
+        title: String,
+        content: String,
+      },
+    ],
+    packingList: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+    // ----------------------------
     weather: {
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
-    // ----------------
     sharedId: {
       type: String,
       unique: true,

@@ -9,19 +9,19 @@ const ai = new GoogleGenAI({
 
 const COST_MULTIPLIERS = {
   accommodation: {
-    hostel: 800,
-    "budget-hotel": 2500,
-    "mid-range": 6000,
-    boutique: 12000,
-    luxury: 30000,
-    airbnb: 5000,
+    hostel: 10,
+    "budget-hotel": 30,
+    "mid-range": 72,
+    boutique: 145,
+    luxury: 360,
+    airbnb: 60,
   },
   food: {
-    "street-food": 400,
-    casual: 800,
-    mix: 1500,
-    restaurant: 2500,
-    "fine-dining": 6000,
+    "street-food": 5,
+    casual: 10,
+    mix: 18,
+    restaurant: 30,
+    "fine-dining": 72,
   },
 };
 
@@ -69,7 +69,7 @@ const generateWithRetry = async (prompt, maxRetries = 3) => {
 };
 
 const getExchangeRate = async (userCurrency) => {
-  const currencyCode = (userCurrency || "INR").toUpperCase();
+  const currencyCode = (userCurrency || "USD").toUpperCase();
 
   if (!EXCHANGE_API_KEY) {
     console.warn(
@@ -80,7 +80,7 @@ const getExchangeRate = async (userCurrency) => {
 
   try {
     const rateRes = await axios.get(
-      `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/INR`,
+      `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/USD`,
       { timeout: 10000 },
     );
 
@@ -123,7 +123,7 @@ Use current realistic market rates in the local currency. Consider that the tier
 
 Return:
 {
-  "currency": "3-letter ISO code of the local currency, e.g. USD, EUR, INR, EGP, AED",
+  "currency": "3-letter ISO code of the local currency, e.g. USD, EUR, USD, EGP, AED",
   "accommodationPerNight": number,
   "foodPerPersonPerDay": number,
   "localTransportPerPersonPerDay": number,
@@ -138,12 +138,12 @@ Return:
 };
 
 const fallbackLocalCosts = (accommodationType, dailyFoodPreference) => ({
-  currency: "INR",
+  currency: "USD",
   accommodationPerNight:
-    COST_MULTIPLIERS.accommodation[accommodationType] || 6000,
-  foodPerPersonPerDay: COST_MULTIPLIERS.food[dailyFoodPreference] || 1500,
-  localTransportPerPersonPerDay: 500,
-  insurancePerPersonPerDay: 300,
+    COST_MULTIPLIERS.accommodation[accommodationType] || 72,
+  foodPerPersonPerDay: COST_MULTIPLIERS.food[dailyFoodPreference] || 18,
+  localTransportPerPersonPerDay: 6,
+  insurancePerPersonPerDay: 4,
   notes: "Fallback estimate using static baseline multipliers.",
 });
 
@@ -159,13 +159,13 @@ exports.calculateBudget = async (req, res) => {
     const accommodationType = inputs.accommodationType || "mid-range";
     const dailyFoodPreference = inputs.dailyFoodPreference || "mix";
     const travelSeason = inputs.travelSeason || "shoulder";
-    const userCurrency = (inputs.userCurrency || "INR").toUpperCase();
+    const userCurrency = (inputs.userCurrency || "USD").toUpperCase();
 
     const seasonMult = SEASON_FACTORS[travelSeason] || 1;
 
     let localCosts;
     let costSource = "ai";
-    let aiCurrency = "INR";
+    let aiCurrency = "USD";
 
     try {
       localCosts = await estimateLocalCosts({
@@ -174,17 +174,17 @@ exports.calculateBudget = async (req, res) => {
         dailyFoodPreference,
         travelSeason,
       });
-      aiCurrency = (localCosts.currency || "INR").toUpperCase();
+      aiCurrency = (localCosts.currency || "USD").toUpperCase();
     } catch (err) {
       console.warn("AI cost estimation failed, using fallback:", err.message);
       localCosts = fallbackLocalCosts(accommodationType, dailyFoodPreference);
-      aiCurrency = "INR";
+      aiCurrency = "USD";
       costSource = "fallback";
     }
 
-    const aiToInrRate = await getExchangeRate(aiCurrency);
-    const inrToUserRate = await getExchangeRate(userCurrency);
-    const aiToUserRate = inrToUserRate / aiToInrRate;
+    const aiCurrencyToUSD = 1 / (await getExchangeRate(aiCurrency)); 
+    const userCurrencyToUSD = 1 / (await getExchangeRate(userCurrency));
+    const aiToUserRate = aiCurrencyToUSD / userCurrencyToUSD; 
 
     const perNightAccommodation =
       (Number(localCosts.accommodationPerNight) || 0) * seasonMult;

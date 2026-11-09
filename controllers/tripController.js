@@ -16,11 +16,10 @@ async function getWeatherForecast(destination, startDate, endDate) {
       return null;
     }
 
-    // Visual Crossing handles geocoding + dates in a single URL
     const url = `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${encodeURIComponent(destination)}/${startDate}/${endDate}?unitGroup=metric&key=${apiKey}&contentType=json`;
 
     const res = await axios.get(url);
-    return res.data.days; // Returns the array of daily forecasts
+    return res.data.days;
   } catch (error) {
     console.error("Weather fetch failed:", error.message);
     return null;
@@ -52,7 +51,6 @@ exports.generateTrips = async (req, res) => {
       if (daysUntilTrip >= 0 && daysUntilTrip <= 15) {
         console.log("Within 15 days! Fetching weather for:", destination);
 
-        // Call the correct function with the correct arguments
         weatherData = await getWeatherForecast(
           destination,
           inputs.startDate,
@@ -67,7 +65,6 @@ exports.generateTrips = async (req, res) => {
         );
 
         if (weatherData && weatherData.length > 0) {
-          // Map over the Visual Crossing data format
           weatherContext = `
           REAL WEATHER FORECAST for ${destination}:
           ${weatherData
@@ -88,10 +85,19 @@ exports.generateTrips = async (req, res) => {
 
     // 2. Create prompt
     const prompt = `
-Create a ${duration}-day travel itinerary for ${destination}.
+You are a travel expert. Create exactly a ${duration}-day travel itinerary for ${destination}.
 Number of travelers: ${travelers}
+
+
+CRITICAL INSTRUCTION: You MUST return a JSON object with exactly three keys: "itinerary", "insights", and "packingList".
+The "insights" array MUST contain exactly 3 objects with the titles "Local Customs", "Money Saving", and "Safety Tip".
+
+CRITICAL INSTRUCTION: All cost values (estimatedDailyCost, estimatedCost) MUST be in US Dollars (USD).
+Only output numeric values — do not include the $ symbol or "USD" text in the field values.
+
 ${weatherContext}
-Return ONLY valid JSON in this format:
+
+Here is the required JSON structure:
 {
   "itinerary": {
     "days": [
@@ -106,21 +112,44 @@ Return ONLY valid JSON in this format:
       }
     ]
   },
-  "insights": [{ "title": "", "content": "" }],
+  "insights": [
+    { "title": "Local Customs", "content": "..." },
+    { "title": "Money Saving", "content": "..." },
+    { "title": "Safety Tip", "content": "..." }
+  ],
   "packingList": { "essentials": [], "clothing": [], "gear": [], "documents": [] }
 }`;
 
     const result = await ai.models.generateContent({
       model: "gemini-3.6-flash",
-      contents: `You are a travel expert. Return ONLY valid JSON. ${prompt}`,
+      contents: prompt,
     });
 
     let text = result.text.trim();
     text = text.replace(/^```json\s*/, "").replace(/```$/, "");
     const aiData = JSON.parse(text);
 
+    // Force the itinerary to exactly match the requested duration
     if (aiData.itinerary?.days) {
       aiData.itinerary.days = aiData.itinerary.days.slice(0, duration);
+    }
+
+    // Safety net: If AI forgot insights, create defaults
+    if (!aiData.insights || aiData.insights.length === 0) {
+      aiData.insights = [
+        {
+          title: "Local Customs",
+          content: `Remember to respect local customs and traditions in ${destination}.`,
+        },
+        {
+          title: "Money Saving",
+          content: `Look for local markets and public transport to save money in ${destination}.`,
+        },
+        {
+          title: "Safety Tip",
+          content: `Always keep an eye on your belongings and check travel advisories for ${destination}.`,
+        },
+      ];
     }
 
     // 3. Save trip
@@ -132,7 +161,7 @@ Return ONLY valid JSON in this format:
       itinerary: aiData.itinerary,
       insights: aiData.insights,
       packingList: aiData.packingList,
-      weather: weatherData, // Saves the array from Visual Crossing
+      weather: weatherData,
       sharedId: uuidV4(),
     });
 
@@ -146,7 +175,7 @@ Return ONLY valid JSON in this format:
   }
 };
 
-// --- OTHER ROUTES (Keep these exactly as they are) ---
+// --- OTHER ROUTES ---
 
 exports.getHistory = async (req, res) => {
   try {
@@ -162,10 +191,7 @@ exports.getHistory = async (req, res) => {
 exports.getTripById = async (req, res) => {
   try {
     const userId = req.user?._id || req.user?.id;
-    const trip = await Trip.findOne({
-      _id: req.params.id,
-      userId: userId,
-    });
+    const trip = await Trip.findOne({ _id: req.params.id, userId: userId });
 
     if (!trip) {
       return res.status(404).json({ error: "Trip not found" });
@@ -180,10 +206,7 @@ exports.getTripById = async (req, res) => {
 exports.toggleShare = async (req, res) => {
   try {
     const userId = req.user?._id || req.user?.id;
-    const trip = await Trip.findOne({
-      _id: req.params.id,
-      userId: userId,
-    });
+    const trip = await Trip.findOne({ _id: req.params.id, userId: userId });
 
     if (!trip) {
       return res.status(404).json({ error: "Trip not found" });
@@ -193,7 +216,6 @@ exports.toggleShare = async (req, res) => {
     if (!trip.sharedId) trip.sharedId = uuidV4();
 
     await trip.save();
-
     res.json({ isPublic: trip.isPublic, sharedId: trip.sharedId });
   } catch (error) {
     res.status(500).json({ error: "failed to toggle share" });

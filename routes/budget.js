@@ -42,7 +42,7 @@ const calValidator = [
     .optional()
     .isString()
     .isLength({ min: 3, max: 3 })
-    .withMessage("Currency must be a 3-letter code (e.g. INR)"),
+    .withMessage("Currency must be a 3-letter code (e.g. USD)"),
 
   body("inputs.accommodationType")
     .notEmpty()

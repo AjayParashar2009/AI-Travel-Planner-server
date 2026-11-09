@@ -20,7 +20,7 @@ const budgetSchema = new mongoose.Schema(
     currency: {
       type: String,
       uppercase: true,
-      default: "INR",
+      default: "USD",
     },
     inputs: {
       duration: { type: Number, required: true, min: 1 },
@@ -42,7 +42,7 @@ const budgetSchema = new mongoose.Schema(
       },
       userCurrency: {
         type: String,
-        default: "INR",
+        default: "USD",
         uppercase: true,
       },
     },
@@ -81,7 +81,7 @@ const budgetSchema = new mongoose.Schema(
 // note: this to access the document
 
 budgetSchema.pre("save", function () {
-  this.currency = this.inputs.userCurrency || "INR";
+  this.currency = this.inputs.userCurrency || "USD";
   const b = this.breakdown || {};
   const total =
     (Number(b.accommodation) || 0) +
