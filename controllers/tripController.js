@@ -119,6 +119,10 @@ Return ONLY valid JSON in this format:
     text = text.replace(/^```json\s*/, "").replace(/```$/, "");
     const aiData = JSON.parse(text);
 
+    if (aiData.itinerary?.days) {
+      aiData.itinerary.days = aiData.itinerary.days.slice(0, duration);
+    }
+
     // 3. Save trip
     const userId = req.user?._id || req.user?.id;
     const newTrip = new Trip({
