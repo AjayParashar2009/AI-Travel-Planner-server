@@ -59,7 +59,7 @@ router.post("/register", registerValidation, validate, authController.register);
 router.post("/login", loginValidation, validate, authController.login);
 router.post("/google", authController.googleLogin);
 
-// --- Password Reset & Verification Routes ---
+// --- Password Reset Routes ---
 
 router.post(
   "/forgot-password",
@@ -75,7 +75,6 @@ router.put(
   authController.resetPassword,
 );
 
-router.get("/verify-email/:token", authController.verifyEmail);
 
 // --- User Profile Routes ---
 
