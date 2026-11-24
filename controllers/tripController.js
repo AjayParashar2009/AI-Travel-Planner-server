@@ -26,6 +26,41 @@ async function getWeatherForecast(destination, startDate, endDate) {
   }
 }
 
+// --- AI RETRY HELPER ---
+async function generateWithRetry(prompt, maxRetries = 3) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt,
+      });
+    } catch (error) {
+      lastError = error;
+
+      // Check if it's a 503 (High Demand) or 429 (Rate Limit)
+      const isRetryable =
+        error.status === 503 ||
+        error.status === 429 ||
+        error.message?.includes("high demand") ||
+        error.message?.includes("UNAVAILABLE");
+
+      if (isRetryable && attempt < maxRetries) {
+        // Wait progressively longer: 2s, 4s, 8s...
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(
+          `Gemini API busy (503/429). Retrying in ${delay}ms... (Attempt ${attempt}/${maxRetries})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        throw error;
+      }
+    }
+  }
+  throw lastError;
+}
+
 // --- GENERATE TRIP ---
 exports.generateTrips = async (req, res) => {
   try {
@@ -88,7 +123,6 @@ exports.generateTrips = async (req, res) => {
 You are a travel expert. Create exactly a ${duration}-day travel itinerary for ${destination}.
 Number of travelers: ${travelers}
 
-
 CRITICAL INSTRUCTION: You MUST return a JSON object with exactly three keys: "itinerary", "insights", and "packingList".
 The "insights" array MUST contain exactly 3 objects with the titles "Local Customs", "Money Saving", and "Safety Tip".
 
@@ -120,10 +154,8 @@ Here is the required JSON structure:
   "packingList": { "essentials": [], "clothing": [], "gear": [], "documents": [] }
 }`;
 
-    const result = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-    });
+    // 3. Call AI with Retry Logic
+    const result = await generateWithRetry(prompt);
 
     let text = result.text.trim();
     text = text.replace(/^```json\s*/, "").replace(/```$/, "");
@@ -152,7 +184,7 @@ Here is the required JSON structure:
       ];
     }
 
-    // 3. Save trip
+    // 4. Save trip
     const userId = req.user?._id || req.user?.id;
     const newTrip = new Trip({
       userId,
