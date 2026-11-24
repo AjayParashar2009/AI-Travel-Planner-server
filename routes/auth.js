@@ -24,22 +24,18 @@ const registerValidation = [
     .trim()
     .isLength({ min: 2, max: 50 })
     .withMessage("Name must be 2-50 characters"),
-
   body("email")
     .isEmail()
     .withMessage("Provide a valid email address")
     .normalizeEmail(),
-
   body("password")
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters"),
-
   body("country").notEmpty().withMessage("Country is required"),
 ];
 
 const loginValidation = [
   body("email").isEmail().withMessage("Valid email required"),
-
   body("password").notEmpty().withMessage("Password cannot be empty"),
 ];
 
@@ -74,7 +70,6 @@ router.put(
   validate,
   authController.resetPassword,
 );
-
 
 // --- User Profile Routes ---
 
