@@ -43,11 +43,43 @@ const loginValidation = [
   body("password").notEmpty().withMessage("Password cannot be empty"),
 ];
 
-router.post("/register", registerValidation, validate, authController.register);
+const forgotPasswordValidation = [
+  body("email").isEmail().withMessage("Valid email required"),
+];
 
+const resetPasswordValidation = [
+  body("password")
+    .isLength({ min: 6 })
+    .withMessage("Password must be at least 6 characters"),
+];
+
+// --- Authentication Routes ---
+
+router.post("/register", registerValidation, validate, authController.register);
 router.post("/login", loginValidation, validate, authController.login);
+router.post("/google", authController.googleLogin);
+
+// --- Password Reset & Verification Routes ---
+
+router.post(
+  "/forgot-password",
+  forgotPasswordValidation,
+  validate,
+  authController.forgotPassword,
+);
+
+router.put(
+  "/reset-password/:token",
+  resetPasswordValidation,
+  validate,
+  authController.resetPassword,
+);
+
+router.get("/verify-email/:token", authController.verifyEmail);
+
+// --- User Profile Routes ---
 
 router.get("/me", auth, authController.getMe);
 router.post("/logout", authController.logout);
-router.post("/google", authController.googleLogin);
+
 module.exports = router;

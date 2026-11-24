@@ -35,6 +35,13 @@ const userSchema = mongoose.Schema(
       enum: ["free", "pro", "enterprise"],
       default: "free",
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: String,
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
   },
   {
     timestamps: true,
@@ -43,7 +50,7 @@ const userSchema = mongoose.Schema(
   },
 );
 
-//encryption
+// Encryption & Country -> Currency mapping
 userSchema.pre("save", async function () {
   if (this.isModified("password")) {
     try {
@@ -56,8 +63,8 @@ userSchema.pre("save", async function () {
 
   if (this.isModified("country")) {
     const currencyMap = {
-      IND: "USD",
       USA: "USD",
+      IND: "INR", 
       GBR: "GBP",
       JPN: "JPY",
       CAN: "CAD",
@@ -68,8 +75,7 @@ userSchema.pre("save", async function () {
   }
 });
 
-// password compare function
-
+// Password compare function
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
