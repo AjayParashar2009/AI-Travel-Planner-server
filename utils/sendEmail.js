@@ -1,22 +1,23 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
+
+// Add RESEND_API_KEY to your .env file
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async (options) => {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER, // <-- matches .env
-      pass: process.env.EMAIL_PASS, // <-- matches .env
-    },
-  });
+  try {
+    const data = await resend.emails.send({
+      from: "YatraAI Support <onboarding@resend.dev>", // Use this for testing
+      to: options.email,
+      subject: options.subject,
+      html: options.html,
+    });
 
-  const mailOptions = {
-    from: `"YatraAI Support" <${process.env.EMAIL_USER}>`,
-    to: options.email,
-    subject: options.subject,
-    html: options.html,
-  };
-
-  await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully via Resend:", data);
+    return data;
+  } catch (error) {
+    console.error("Resend email failed:", error);
+    throw error;
+  }
 };
 
 module.exports = sendEmail;
