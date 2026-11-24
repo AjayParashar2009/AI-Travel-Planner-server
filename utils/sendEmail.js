@@ -1,21 +1,32 @@
-const { Resend } = require("resend");
-
-// Add RESEND_API_KEY to your .env file
-const resend = new Resend(process.env.RESEND_API_KEY);
+const brevo = require("@getbrevo/brevo");
 
 const sendEmail = async (options) => {
-  try {
-    const data = await resend.emails.send({
-      from: "YatraAI Support <onboarding@resend.dev>", // Use this for testing
-      to: options.email,
-      subject: options.subject,
-      html: options.html,
-    });
+  // Initialize the API client
+  const apiInstance = new brevo.TransactionalEmailsApi();
 
-    console.log("Email sent successfully via Resend:", data);
-    return data;
+  // Set the Brevo API key
+  apiInstance.setApiKey(
+    brevo.TransactionalEmailsApiApiKeys.apiKey,
+    process.env.BREVO_API_KEY,
+  );
+
+  const sendSmtpEmail = new brevo.SendSmtpEmail();
+  sendSmtpEmail.subject = options.subject;
+  sendSmtpEmail.htmlContent = options.html;
+
+  // The "from" email MUST be the Gmail address you verified as a sender in Brevo
+  sendSmtpEmail.sender = {
+    name: "YatraAI Support",
+    email: process.env.EMAIL_USER,
+  };
+
+  sendSmtpEmail.to = [{ email: options.email }];
+
+  try {
+    await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log("Email sent successfully via Brevo");
   } catch (error) {
-    console.error("Resend email failed:", error);
+    console.error("Brevo email failed:", error);
     throw error;
   }
 };
